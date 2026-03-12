@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """
-ScreenSense — Diagnóstico por imágenes para pentesting.
+ScreenSense — Visual triage for pentesting screenshots.
 
-Analiza screenshots de scans web y detecta automáticamente logins,
-directory listings, stack traces y más. Como una radiografía de tu recon.
+Analyzes web scan screenshots and automatically detects logins,
+directory listings, stack traces and more. Like an X-ray for your recon.
 
-Uso:
+Usage:
   screensense.py /path/to/screenshots/
   screensense.py /path/to/screenshots/ -t 0.8
   screensense.py /path/to/screenshots/ -t 0.8 -o results.json
   screensense.py /path/to/screenshots/ --model model.tflite
 
-Salida JSON:
+JSON output:
   {
     "metadata": { ... },
     "detections": [
@@ -20,10 +20,10 @@ Salida JSON:
     ]
   }
 
-Deploy en server remoto:
-  Solo se necesitan 2 archivos: screensense.py + model.tflite (~3.1MB)
+Remote deploy:
+  Only 2 files needed: screensense.py + model.tflite (~3.1MB)
   pip install tensorflow Pillow numpy
-  No requiere internet, API keys ni credenciales.
+  No internet, API keys or credentials required.
 """
 
 import argparse
@@ -35,17 +35,17 @@ from pathlib import Path
 import numpy as np
 from PIL import Image as PILImage
 
-# ── Configuración ─────────────────────────────────────────────────
+# ── Configuration ─────────────────────────────────────────────────
 MODEL_PATH = Path(__file__).parent / "model" / "model.tflite"
 
-# Orden exacto de labels en el modelo TFLite (no cambiar)
+# Exact label order in the TFLite model (do not change)
 ALL_LABELS = [
     "custom404", "directory_listing", "logs", "login", "cms_admin",
     "parked", "stack_trace", "database_exposed", "webapp", "printer_iot",
     "api_response", "oldlooking",
 ]
 
-# Categorías de interés para producción
+# Target categories for production
 TARGET_LABELS = ["login", "directory_listing", "stack_trace"]
 
 INPUT_SIZE = 224
@@ -86,7 +86,7 @@ def collect_and_dedup(input_path):
         list(input_path.glob("*.jpeg"))
     )
     if not image_paths:
-        print(f"Error: no se encontraron imágenes en {input_path}", file=sys.stderr)
+        print(f"Error: no images found in {input_path}", file=sys.stderr)
         sys.exit(1)
 
     hash_to_paths = {}
@@ -103,51 +103,49 @@ def collect_and_dedup(input_path):
 def main():
     parser = argparse.ArgumentParser(
         prog="screensense",
-        description="ScreenSense — Diagnóstico por imágenes para pentesting",
+        description="ScreenSense — Visual triage for pentesting screenshots",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-ejemplos:
+examples:
   %(prog)s /path/to/screenshots/
   %(prog)s /path/to/screenshots/ -t 0.8
   %(prog)s /path/to/screenshots/ -t 0.8 -o results.json
   %(prog)s /path/to/screenshots/ --model model.tflite
         """,
     )
-    parser.add_argument("input", help="directorio con screenshots")
+    parser.add_argument("input", help="directory containing screenshots")
     parser.add_argument("-t", "--threshold", type=float, default=0.5,
-                        help="umbral de confianza mínimo (default: 0.5)")
+                        help="minimum confidence threshold (default: 0.5)")
     parser.add_argument("-o", "--output", default="classification.json",
-                        help="ruta del JSON de salida (default: classification.json)")
+                        help="JSON output path (default: classification.json)")
     parser.add_argument("--model", default=str(MODEL_PATH),
-                        help="ruta al archivo .tflite")
+                        help="path to .tflite model file")
     parser.add_argument("-q", "--quiet", action="store_true",
-                        help="solo mostrar errores")
+                        help="suppress all output except errors")
     args = parser.parse_args()
 
     input_path = Path(args.input)
     if not input_path.is_dir():
-        print(f"Error: {args.input} no es un directorio.", file=sys.stderr)
+        print(f"Error: {args.input} is not a directory.", file=sys.stderr)
         sys.exit(1)
 
     model_path = Path(args.model)
     if not model_path.exists():
-        print(f"Error: modelo no encontrado en {args.model}", file=sys.stderr)
+        print(f"Error: model not found at {args.model}", file=sys.stderr)
         sys.exit(1)
 
     log = (lambda *a, **k: None) if args.quiet else print
 
-    # Cargar modelo
-    log("Cargando modelo...")
+    log("Loading model...")
     t0 = time.time()
     interpreter = load_model(args.model)
-    log(f"Modelo cargado en {time.time()-t0:.1f}s")
+    log(f"Model loaded in {time.time()-t0:.1f}s")
 
-    # Recopilar y deduplicar
     all_paths, hash_to_paths = collect_and_dedup(input_path)
     total = len(all_paths)
     unique = len(hash_to_paths)
-    log(f"Imágenes: {total} total, {unique} únicas, {total - unique} duplicadas")
-    log(f"Clasificando {unique} imágenes...")
+    log(f"Images: {total} total, {unique} unique, {total - unique} duplicates")
+    log(f"Classifying {unique} images...")
 
     t0 = time.time()
     detections = []
@@ -196,9 +194,8 @@ ejemplos:
     with open(output_path, "w") as f:
         json.dump(output, f, indent=2, ensure_ascii=False)
 
-    # Resumen
     log(f"\n{'='*50}")
-    log(f"{len(detections)} detecciones en {elapsed:.1f}s ({unique/elapsed:.1f} img/s)")
+    log(f"{len(detections)} detections in {elapsed:.1f}s ({unique/elapsed:.1f} img/s)")
     log(f"{'='*50}")
     for label, count in sorted(counts.items(), key=lambda x: -x[1]):
         bar = "█" * min(count, 40)

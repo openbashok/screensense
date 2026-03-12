@@ -1,54 +1,57 @@
 # ScreenSense
 
-Diagnóstico por imágenes para pentesting. Analiza screenshots de scans web y detecta automáticamente logins, directory listings, stack traces y más.
+Visual triage for pentesting screenshots. Analyzes web scan screenshots and automatically detects logins, directory listings, stack traces and more.
 
-Como una radiografía de tu recon: le pasás un directorio con miles de screenshots y te dice cuáles son interesantes.
+Like an X-ray for your recon: feed it a directory with thousands of screenshots and it tells you which ones are interesting.
 
-## Qué detecta
+## What it detects
 
-| Categoría | Descripción |
+| Category | Description |
 |---|---|
-| `login` | Páginas de login/autenticación |
+| `login` | Login/authentication pages |
 | `directory_listing` | Directory indexes (Apache, Nginx, IIS, Tomcat) |
-| `stack_trace` | Stack traces y errores (Java, Python, PHP, .NET, Node.js) |
-| `webapp` | Aplicaciones web con superficie de ataque |
-| `custom404` | Páginas 404 custom |
-| `oldlooking` | Sitios con aspecto legacy/desactualizado |
-| `parked` | Dominios estacionados |
-| `api_response` | Respuestas JSON/XML de APIs expuestas |
+| `stack_trace` | Stack traces and errors (Java, Python, PHP, .NET, Node.js) |
+| `webapp` | Web applications with attack surface |
+| `custom404` | Custom 404 error pages |
+| `oldlooking` | Legacy/outdated-looking sites |
+| `parked` | Parked/placeholder domains |
+| `api_response` | Raw JSON/XML API responses, Swagger UI |
 | `database_exposed` | phpMyAdmin, Adminer, MongoDB Express |
-| `printer_iot` | Impresoras, cámaras IP, routers, IoT |
-| `cms_admin` | Paneles de WordPress, Joomla, Drupal, cPanel |
-| `logs` | Logs expuestos (access, error, syslog) |
+| `printer_iot` | Printers, IP cameras, routers, IoT devices |
+| `cms_admin` | WordPress, Joomla, Drupal, cPanel admin panels |
+| `logs` | Exposed log files (access, error, syslog) |
 
-## Instalación
+## Installation
 
 ```bash
-git clone https://github.com/YOUR_USER/screensense.git
+git clone https://github.com/lostsurface/screensense.git
 cd screensense
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 ```
 
-## Uso
+## Usage
 
 ```bash
-# Uso básico
-.venv/bin/python screensense.py /path/to/screenshots/
+# Basic usage (default threshold: 0.5)
+python3 screensense.py /path/to/screenshots/
 
-# Mayor precisión con threshold alto
-.venv/bin/python screensense.py /path/to/screenshots/ -t 0.8
+# Higher precision with strict threshold
+python3 screensense.py /path/to/screenshots/ -t 0.8
 
-# Especificar salida
-.venv/bin/python screensense.py /path/to/screenshots/ -t 0.8 -o results.json
+# Custom output path
+python3 screensense.py /path/to/screenshots/ -t 0.8 -o results.json
 
-# Modo silencioso (solo genera el JSON)
-.venv/bin/python screensense.py /path/to/screenshots/ -t 0.8 -o results.json -q
+# Quiet mode (only generates JSON, no stdout)
+python3 screensense.py /path/to/screenshots/ -t 0.8 -o results.json -q
+
+# Custom model path (for remote deployments)
+python3 screensense.py /path/to/screenshots/ --model /path/to/model.tflite
 ```
 
-## Salida
+## Output
 
-Genera un JSON con las detecciones positivas:
+Generates a JSON file with positive detections only:
 
 ```json
 {
@@ -60,6 +63,11 @@ Genera un JSON con las detecciones positivas:
     "images_per_second": 31.0,
     "threshold": 0.8
   },
+  "counts": {
+    "login": 44,
+    "directory_listing": 1,
+    "stack_trace": 0
+  },
   "detections": [
     { "id": "abc123def456", "category": "login", "score": 0.9531 },
     { "id": "ff0099aabb11", "category": "directory_listing", "score": 0.8712 }
@@ -67,112 +75,85 @@ Genera un JSON con las detecciones positivas:
 }
 ```
 
-### Formato de nombres de archivo
+### Screenshot filename format
 
-ScreenSense espera que los screenshots sigan la convención de herramientas como GoWitness, EyeWitness u OpenBash, donde el nombre contiene un hash de contenido separado por `_` al final:
+ScreenSense expects screenshots to follow the naming convention used by tools like GoWitness, EyeWitness, or OpenBash, where the filename contains a content hash separated by `_` at the end:
 
 ```
-<prefijo>_<hash_contenido>.png
+<prefix>_<content_hash>.png
 ```
 
-Ejemplos:
+Examples:
 ```
-http__ventas_flow_cl__ddf01f71acd25b40.png
+http__ventas_example_com__ddf01f71acd25b40.png
 https__admin_example_com__443__a1b2c3d4e5f67890.png
 http__192_168_1_1__8080__ff00aa11bb22cc33.png
 ```
 
-El `id` en la salida JSON es ese hash final (`ddf01f71acd25b40`). Así funciona la deduplicación: si dos URLs distintas muestran la misma página, comparten el mismo hash y ScreenSense las clasifica una sola vez.
+The `id` field in the JSON output is that final hash (`ddf01f71acd25b40`). This is how deduplication works: if two different URLs render the same page, they share the same hash and ScreenSense classifies them only once.
 
-**Si los nombres no siguen este formato** (por ejemplo `screenshot_001.png`), ScreenSense usa el nombre completo sin extensión como `id`. La clasificación funciona igual, pero no hay deduplicación.
+**If filenames don't follow this format** (e.g., `screenshot_001.png`), ScreenSense uses the full filename (without extension) as the `id`. Classification works the same, but there's no deduplication.
 
-Formatos soportados: `.png`, `.jpg`, `.jpeg`.
+Supported formats: `.png`, `.jpg`, `.jpeg`.
 
-## Deploy en servidor remoto
+## Remote deployment
 
-Solo necesitás 2 archivos:
+Only 2 files needed:
 
 ```bash
 scp screensense.py model/model.tflite user@server:~/screensense/
 ```
 
-En el server:
+On the server:
 
 ```bash
 pip install tensorflow Pillow numpy
 python3 screensense.py /screenshots/ -t 0.8 -o results.json --model model.tflite
 ```
 
-No requiere internet, API keys ni credenciales. Corre 100% offline.
+No internet, API keys or credentials required. Runs 100% offline.
 
-## Integración con agentes de pentesting
+## Agent integration
 
-ScreenSense está diseñado para alimentar agentes autónomos que procesan resultados de escaneos web. En vez de que un agente reciba miles de screenshots sin contexto, ScreenSense le da un mapa de qué hay en cada imagen antes de mirarla.
+ScreenSense is designed to feed autonomous pentesting agents. Instead of an agent receiving thousands of screenshots with no context, ScreenSense provides a map of what each image contains before looking at it.
 
-### Flujo típico con agentes
+See [AGENT.md](AGENT.md) for full integration guide including:
+- How to execute and parse output
+- What to do with each detected category
+- Python and bash integration examples
+- Target prioritization logic
+
+### Typical pipeline
 
 ```
-Scan (GoWitness/EyeWitness/etc)
+Web scan (GoWitness/EyeWitness/etc)
   → screenshots/
     → ScreenSense (classify)
       → detections.json
-        → Agente consume el JSON y prioriza targets
+        → Agent consumes JSON and prioritizes targets
 ```
 
-### Cómo lo usa un agente
-
-1. **Priorización automática**: El agente recibe el JSON y sabe inmediatamente cuáles son los targets de alto valor sin necesidad de procesar visualmente cada screenshot:
-   - `login` → Intentar credenciales default, buscar vulnerabilidades de autenticación
-   - `directory_listing` → Buscar archivos sensibles (.env, backups, configs)
-   - `stack_trace` → Extraer versiones, paths internos, info de debug
-   - `database_exposed` → Acceso directo a datos, verificar autenticación
-   - `api_response` → Endpoints para enumerar, posible data leakage
-   - `cms_admin` → Verificar versiones vulnerables, plugins, credenciales default
-
-2. **Reducción de ruido**: De 1000 screenshots, típicamente 70%+ son duplicados y la mayoría son páginas irrelevantes (parked, 404, etc). ScreenSense filtra el ruido y le entrega al agente solo lo accionable.
-
-3. **Correlación por hash**: El campo `id` (hash de contenido) permite correlacionar la misma página apareciendo en múltiples subdominios. Si `login` aparece con el mismo `id` en 50 subdominios, el agente sabe que es el mismo formulario detrás de todos.
-
-### Ejemplo de consumo desde un agente
+### Quick integration example
 
 ```python
-import json
+import json, subprocess
 
-with open("detections.json") as f:
+subprocess.run(["python3", "screensense.py", "/screenshots/",
+                "-t", "0.8", "-o", "out.json", "-q"])
+
+with open("out.json") as f:
     data = json.load(f)
 
-# Obtener todos los logins detectados
 logins = [d for d in data["detections"] if d["category"] == "login"]
-
-# Obtener los IDs únicos de directory listings con alta confianza
-dirlist_ids = [d["id"] for d in data["detections"]
-               if d["category"] == "directory_listing" and d["score"] > 0.8]
-
-# Mapear IDs a archivos de screenshot para inspección visual
-# El archivo original es: *_<id>.png en el directorio de screenshots
+print(f"Found {len(logins)} login pages to test")
 ```
-
-### Integración en pipelines
-
-```bash
-# Paso 1: Scan
-gowitness scan -f urls.txt -o screenshots/
-
-# Paso 2: Clasificar
-python3 screensense.py screenshots/ -t 0.8 -o detections.json -q
-
-# Paso 3: El agente consume detections.json y actúa
-python3 agent.py --input detections.json --screenshots screenshots/
-```
-
-El flag `-q` (quiet) es ideal para pipelines: no imprime nada a stdout, solo genera el JSON.
 
 ## Performance
 
-- ~30 imágenes/segundo en CPU
-- Modelo TFLite de 3.1MB
-- Deduplica automáticamente por hash (en un scan típico, 70%+ son duplicados)
+- ~30 images/second on CPU
+- 3.1MB TFLite model
+- Automatic hash-based deduplication (in a typical scan, 70%+ are duplicates)
 
-## Licencia
+## License
 
 MIT
