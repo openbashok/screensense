@@ -7,3 +7,4 @@ build/
 classified/
 *.json
 !screensense/model/*.json
+.DS_Store
