@@ -45,8 +45,8 @@ ALL_LABELS = [
     "api_response", "oldlooking",
 ]
 
-# Target categories for production
-TARGET_LABELS = ["login", "directory_listing", "stack_trace"]
+# Default target categories
+DEFAULT_LABELS = ["login", "directory_listing", "stack_trace", "oldlooking"]
 
 INPUT_SIZE = 224
 
@@ -106,11 +106,26 @@ def main():
         description="ScreenSense — Visual triage for pentesting screenshots",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
+available categories:
+  login              Login/authentication pages
+  directory_listing  Directory indexes (Apache, Nginx, IIS, Tomcat)
+  stack_trace        Stack traces and errors (Java, Python, PHP, .NET, Node.js)
+  oldlooking         Legacy/outdated-looking sites
+  custom404          Custom 404 error pages
+  webapp             Web applications with attack surface
+  parked             Parked/placeholder domains
+  api_response       Raw JSON/XML API responses, Swagger UI
+  database_exposed   phpMyAdmin, Adminer, MongoDB Express
+  printer_iot        Printers, IP cameras, routers, IoT devices
+  cms_admin          WordPress, Joomla, Drupal, cPanel admin panels
+  logs               Exposed log files (access, error, syslog)
+
 examples:
   %(prog)s /path/to/screenshots/
   %(prog)s /path/to/screenshots/ -t 0.8
   %(prog)s /path/to/screenshots/ -t 0.8 -o results.json
-  %(prog)s /path/to/screenshots/ --model model.tflite
+  %(prog)s /path/to/screenshots/ --all
+  %(prog)s /path/to/screenshots/ -c login,directory_listing,database_exposed
         """,
     )
     parser.add_argument("input", help="directory containing screenshots")
@@ -122,7 +137,23 @@ examples:
                         help="path to .tflite model file")
     parser.add_argument("-q", "--quiet", action="store_true",
                         help="suppress all output except errors")
+    parser.add_argument("--all", action="store_true",
+                        help="detect all 12 categories (overrides -c)")
+    parser.add_argument("-c", "--categories", type=str, default=None,
+                        help="comma-separated list of categories to detect (default: login,directory_listing,stack_trace,oldlooking)")
     args = parser.parse_args()
+
+    if args.all:
+        target_labels = list(ALL_LABELS)
+    elif args.categories:
+        target_labels = [c.strip() for c in args.categories.split(",")]
+        invalid = [c for c in target_labels if c not in ALL_LABELS]
+        if invalid:
+            print(f"Error: unknown categories: {', '.join(invalid)}", file=sys.stderr)
+            print(f"Valid categories: {', '.join(ALL_LABELS)}", file=sys.stderr)
+            sys.exit(1)
+    else:
+        target_labels = list(DEFAULT_LABELS)
 
     input_path = Path(args.input)
     if not input_path.is_dir():
@@ -149,14 +180,14 @@ examples:
 
     t0 = time.time()
     detections = []
-    counts = {l: 0 for l in TARGET_LABELS}
+    counts = {l: 0 for l in target_labels}
     done = 0
 
     for img_hash, paths in hash_to_paths.items():
         representative = paths[0]
         scores = predict(interpreter, preprocess(representative))
 
-        active = {l: round(scores[l], 4) for l in TARGET_LABELS if scores[l] >= args.threshold}
+        active = {l: round(scores[l], 4) for l in target_labels if scores[l] >= args.threshold}
 
         if active:
             for label, score in active.items():
@@ -183,7 +214,7 @@ examples:
             "processing_time_seconds": round(elapsed, 1),
             "images_per_second": round(unique / elapsed, 1),
             "threshold": args.threshold,
-            "target_categories": TARGET_LABELS,
+            "target_categories": target_labels,
             "source_directory": str(input_path),
         },
         "counts": counts,
