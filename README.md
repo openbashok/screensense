@@ -67,7 +67,26 @@ Genera un JSON con las detecciones positivas:
 }
 ```
 
-El `id` es el hash de contenido de la imagen (último segmento del nombre de archivo). Las imágenes duplicadas (mismo hash, distinto subdominio) se procesan una sola vez.
+### Formato de nombres de archivo
+
+ScreenSense espera que los screenshots sigan la convención de herramientas como GoWitness, EyeWitness u OpenBash, donde el nombre contiene un hash de contenido separado por `_` al final:
+
+```
+<prefijo>_<hash_contenido>.png
+```
+
+Ejemplos:
+```
+http__ventas_flow_cl__ddf01f71acd25b40.png
+https__admin_example_com__443__a1b2c3d4e5f67890.png
+http__192_168_1_1__8080__ff00aa11bb22cc33.png
+```
+
+El `id` en la salida JSON es ese hash final (`ddf01f71acd25b40`). Así funciona la deduplicación: si dos URLs distintas muestran la misma página, comparten el mismo hash y ScreenSense las clasifica una sola vez.
+
+**Si los nombres no siguen este formato** (por ejemplo `screenshot_001.png`), ScreenSense usa el nombre completo sin extensión como `id`. La clasificación funciona igual, pero no hay deduplicación.
+
+Formatos soportados: `.png`, `.jpg`, `.jpeg`.
 
 ## Deploy en servidor remoto
 
