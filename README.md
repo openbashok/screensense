@@ -86,6 +86,68 @@ python3 screensense.py /screenshots/ -t 0.8 -o results.json --model model.tflite
 
 No requiere internet, API keys ni credenciales. Corre 100% offline.
 
+## Integración con agentes de pentesting
+
+ScreenSense está diseñado para alimentar agentes autónomos que procesan resultados de escaneos web. En vez de que un agente reciba miles de screenshots sin contexto, ScreenSense le da un mapa de qué hay en cada imagen antes de mirarla.
+
+### Flujo típico con agentes
+
+```
+Scan (GoWitness/EyeWitness/etc)
+  → screenshots/
+    → ScreenSense (classify)
+      → detections.json
+        → Agente consume el JSON y prioriza targets
+```
+
+### Cómo lo usa un agente
+
+1. **Priorización automática**: El agente recibe el JSON y sabe inmediatamente cuáles son los targets de alto valor sin necesidad de procesar visualmente cada screenshot:
+   - `login` → Intentar credenciales default, buscar vulnerabilidades de autenticación
+   - `directory_listing` → Buscar archivos sensibles (.env, backups, configs)
+   - `stack_trace` → Extraer versiones, paths internos, info de debug
+   - `database_exposed` → Acceso directo a datos, verificar autenticación
+   - `api_response` → Endpoints para enumerar, posible data leakage
+   - `cms_admin` → Verificar versiones vulnerables, plugins, credenciales default
+
+2. **Reducción de ruido**: De 1000 screenshots, típicamente 70%+ son duplicados y la mayoría son páginas irrelevantes (parked, 404, etc). ScreenSense filtra el ruido y le entrega al agente solo lo accionable.
+
+3. **Correlación por hash**: El campo `id` (hash de contenido) permite correlacionar la misma página apareciendo en múltiples subdominios. Si `login` aparece con el mismo `id` en 50 subdominios, el agente sabe que es el mismo formulario detrás de todos.
+
+### Ejemplo de consumo desde un agente
+
+```python
+import json
+
+with open("detections.json") as f:
+    data = json.load(f)
+
+# Obtener todos los logins detectados
+logins = [d for d in data["detections"] if d["category"] == "login"]
+
+# Obtener los IDs únicos de directory listings con alta confianza
+dirlist_ids = [d["id"] for d in data["detections"]
+               if d["category"] == "directory_listing" and d["score"] > 0.8]
+
+# Mapear IDs a archivos de screenshot para inspección visual
+# El archivo original es: *_<id>.png en el directorio de screenshots
+```
+
+### Integración en pipelines
+
+```bash
+# Paso 1: Scan
+gowitness scan -f urls.txt -o screenshots/
+
+# Paso 2: Clasificar
+python3 screensense.py screenshots/ -t 0.8 -o detections.json -q
+
+# Paso 3: El agente consume detections.json y actúa
+python3 agent.py --input detections.json --screenshots screenshots/
+```
+
+El flag `-q` (quiet) es ideal para pipelines: no imprime nada a stdout, solo genera el JSON.
+
 ## Performance
 
 - ~30 imágenes/segundo en CPU
