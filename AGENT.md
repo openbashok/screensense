@@ -26,7 +26,15 @@ Parámetros:
 - `-o <salida.json>`: ruta del archivo JSON de salida
 - `--stream-log <ruta>`: escribe el stream por imagen a este archivo (para hacer `tail -f` desde otra terminal)
 - `-q`: modo silencioso, no imprime nada a stdout (el stream-log sigue funcionando si se pasa)
+- `--all`: detectar las 12 categorías (por default solo se reportan 4: `login`, `directory_listing`, `stack_trace`, `oldlooking`)
+- `-c <lista>`: lista separada por comas de categorías a detectar (ej: `-c login,database_exposed,cms_admin`). `--all` lo sobrescribe.
 - `--model <ruta>`: ruta al archivo model.tflite si no está en `model/model.tflite`
+
+### Categorías disponibles
+
+Las 12 categorías que reconoce el modelo (usá `--all` para activarlas todas, o `-c` para elegir un subset):
+
+`login`, `directory_listing`, `stack_trace`, `oldlooking`, `webapp`, `custom404`, `parked`, `api_response`, `database_exposed`, `printer_iot`, `cms_admin`, `logs`
 
 ## Formato de salida
 
