@@ -8,3 +8,5 @@ classified/
 *.json
 !screensense/model/*.json
 .DS_Store
+example_screenshots/
+classification.json

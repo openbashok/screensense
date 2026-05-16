@@ -56,7 +56,10 @@ def load_model(model_path):
         import tensorflow as tf
         interpreter = tf.lite.Interpreter(model_path=str(model_path))
     except ImportError:
-        from tflite_runtime.interpreter import Interpreter
+        try:
+            from ai_edge_litert.interpreter import Interpreter
+        except ImportError:
+            from tflite_runtime.interpreter import Interpreter
         interpreter = Interpreter(model_path=str(model_path))
     interpreter.allocate_tensors()
     return interpreter
@@ -137,6 +140,8 @@ examples:
                         help="path to .tflite model file")
     parser.add_argument("-q", "--quiet", action="store_true",
                         help="suppress all output except errors")
+    parser.add_argument("--stream-log", metavar="PATH", default=None,
+                        help="write per-image stream to this file (for tail -f)")
     parser.add_argument("--all", action="store_true",
                         help="detect all 12 categories (overrides -c)")
     parser.add_argument("-c", "--categories", type=str, default=None,
@@ -165,23 +170,32 @@ examples:
         print(f"Error: model not found at {args.model}", file=sys.stderr)
         sys.exit(1)
 
-    log = (lambda *a, **k: None) if args.quiet else print
+    # Mirror of stdout: quiet flag + optional log file
+    stream_log_file = open(args.stream_log, "w", buffering=1) if args.stream_log else None
 
-    log("Loading model...")
+    def emit(line):
+        if not args.quiet:
+            print(line, flush=True)
+        if stream_log_file:
+            stream_log_file.write(line + "\n")
+            stream_log_file.flush()
+
+    emit("Loading model...")
     t0 = time.time()
     interpreter = load_model(args.model)
-    log(f"Model loaded in {time.time()-t0:.1f}s")
+    emit(f"Model loaded in {time.time()-t0:.1f}s")
 
     all_paths, hash_to_paths = collect_and_dedup(input_path)
     total = len(all_paths)
     unique = len(hash_to_paths)
-    log(f"Images: {total} total, {unique} unique, {total - unique} duplicates")
-    log(f"Classifying {unique} images...")
+    emit(f"Images: {total} total, {unique} unique, {total - unique} duplicates")
+    emit(f"Classifying {unique} images...")
 
     t0 = time.time()
     detections = []
     counts = {l: 0 for l in target_labels}
     done = 0
+    idx_width = len(str(unique))
 
     for img_hash, paths in hash_to_paths.items():
         representative = paths[0]
@@ -199,8 +213,13 @@ examples:
                 counts[label] += 1
 
         done += 1
-        if not args.quiet and done % 50 == 0:
-            log(f"  {done}/{unique} ({100*done//unique}%)")
+        filename = representative.name
+        if active:
+            best_label = max(active, key=active.get)
+            best_score = active[best_label]
+            emit(f"[{done:0{idx_width}}/{unique}] {filename:<52}  →  {best_label:<18}  ({best_score:.2f})")
+        else:
+            emit(f"[{done:0{idx_width}}/{unique}] {filename:<52}  →  {'─':<18}  (skip)")
 
     elapsed = time.time() - t0
     detections.sort(key=lambda x: (x["id"], x["category"]))
@@ -225,13 +244,15 @@ examples:
     with open(output_path, "w") as f:
         json.dump(output, f, indent=2, ensure_ascii=False)
 
-    log(f"\n{'='*50}")
-    log(f"{len(detections)} detections in {elapsed:.1f}s ({unique/elapsed:.1f} img/s)")
-    log(f"{'='*50}")
+    emit(f"\n{'='*50}")
+    emit(f"{len(detections)} detections in {elapsed:.1f}s ({unique/elapsed:.1f} img/s)")
+    emit(f"{'='*50}")
     for label, count in sorted(counts.items(), key=lambda x: -x[1]):
         bar = "█" * min(count, 40)
-        log(f"  {label:<20} {count:>4}  {bar}")
-    log(f"\nJSON: {output_path}")
+        emit(f"  {label:<20} {count:>4}  {bar}")
+    emit(f"\nJSON: {output_path}")
+    if stream_log_file:
+        stream_log_file.close()
 
 
 if __name__ == "__main__":

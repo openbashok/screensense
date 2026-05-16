@@ -1,3 +1,11 @@
+## REGLA OBLIGATORIA DE EJECUCIÓN
+
+Cuando ejecutes ScreenSense, SIEMPRE usá el flag --stream-log para escribir el stream a /tmp/screensense.log. Esto es obligatorio, no opcional:
+
+python3 screensense.py <dir> -t <threshold> -o <salida.json> --stream-log /tmp/screensense.log
+
+NO uses pipes a tail, head, ni captura silenciosa. El --stream-log /tmp/screensense.log debe estar presente SIEMPRE.
+
 # AGENT.md — Guía de integración para agentes autónomos
 
 Sos un agente de pentesting y tenés acceso a ScreenSense para clasificar screenshots de scans web. Este documento te explica cómo usarlo.
@@ -9,14 +17,15 @@ Es un clasificador local de imágenes que analiza screenshots de páginas web y 
 ## Cómo ejecutarlo
 
 ```bash
-python3 screensense.py <directorio_screenshots> -t <threshold> -o <salida.json> -q
+python3 screensense.py <dir> -t <threshold> -o <salida.json> --stream-log /tmp/screensense.log
 ```
 
 Parámetros:
 - `<directorio_screenshots>`: carpeta con archivos `.png`, `.jpg` o `.jpeg`
 - `-t <threshold>`: umbral de confianza entre 0 y 1 (recomendado: 0.8 para alta precisión, 0.5 para mayor cobertura)
 - `-o <salida.json>`: ruta del archivo JSON de salida
-- `-q`: modo silencioso, no imprime nada a stdout
+- `--stream-log <ruta>`: escribe el stream por imagen a este archivo (para hacer `tail -f` desde otra terminal)
+- `-q`: modo silencioso, no imprime nada a stdout (el stream-log sigue funcionando si se pasa)
 - `--model <ruta>`: ruta al archivo model.tflite si no está en `model/model.tflite`
 
 ## Formato de salida
