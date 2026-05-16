@@ -38,12 +38,13 @@ Parámetros:
     "detections": 48,
     "processing_time_seconds": 8.1,
     "threshold": 0.8,
-    "target_categories": ["login", "directory_listing", "stack_trace"]
+    "target_categories": ["login", "directory_listing", "stack_trace", "oldlooking"]
   },
   "counts": {
     "login": 44,
     "directory_listing": 1,
-    "stack_trace": 0
+    "stack_trace": 0,
+    "oldlooking": 3
   },
   "detections": [
     { "id": "ddf01f71acd25b40", "category": "login", "score": 0.9531 },
@@ -55,7 +56,7 @@ Parámetros:
 ### Campos de cada detección
 
 - `id`: hash de contenido de la imagen. Permite correlacionar con el archivo original: el screenshot se llama `*_<id>.png` en el directorio de entrada.
-- `category`: categoría detectada (`login`, `directory_listing` o `stack_trace`).
+- `category`: categoría detectada (`login`, `directory_listing`, `stack_trace` u `oldlooking` por default; otras si se usó `--all` o `-c`).
 - `score`: confianza entre 0 y 1. Mayor score = mayor certeza.
 
 ### Cómo encontrar el archivo original a partir del id
@@ -90,6 +91,13 @@ Si hay múltiples archivos con el mismo id, son duplicados (misma página en dis
 - Identificar la tecnología (Java/Spring, Python/Django, PHP, .NET, Node.js)
 - Buscar información de conexión a bases de datos en el error
 - Verificar si el modo debug está habilitado en producción
+
+### oldlooking (sitios legacy / desactualizados)
+- Indicador de stack viejo (PHP/ASP sin patches, jQuery viejo, frames, etc.)
+- Probar vulnerabilidades clásicas: XSS reflejado, SQLi, LFI, CSRF sin token
+- Correr `nikto`/`nuclei` con templates legacy
+- Buscar paneles administrativos sin auth (`/admin`, `/manager`, `/phpmyadmin`)
+- Verificar headers de seguridad (probablemente ausentes)
 
 ## Ejemplo de integración en Python
 
@@ -161,4 +169,4 @@ for d in data['detections']:
 - **Deduplicación**: Si hay 1000 screenshots pero 700 son duplicados (mismo hash), solo se clasifican 300. Esto es común en scans con muchos subdominios apuntando al mismo servidor.
 - **Threshold**: Usá 0.8 si preferís precisión (pocos falsos positivos). Usá 0.5 si preferís cobertura (más detecciones pero posibles falsos positivos).
 - **Offline**: No hace ninguna conexión de red. Todo corre local con un modelo TFLite de 3.1MB.
-- **Sin dependencias pesadas**: Solo necesita `tensorflow` (o `tflite-runtime`), `Pillow` y `numpy`.
+- **Sin dependencias pesadas**: Solo necesita `tensorflow` (o `ai_edge_litert` / `tflite-runtime` como fallback), `Pillow` y `numpy`.
